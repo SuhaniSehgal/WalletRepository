@@ -1,59 +1,28 @@
-package com.example.demospringboot.entity;
+package com.example.demospringboot.model;
 
-import com.example.demospringboot.util.Auditable;
+import com.example.demospringboot.util.enums.ErrorCodes;
 import com.example.demospringboot.util.enums.TransactionDirection;
 import com.example.demospringboot.util.enums.TransactionStatus;
-import com.example.demospringboot.util.enums.TransactionType;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
-import javax.persistence.*;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 import java.math.BigDecimal;
+import java.util.Date;
 
-/**
- * Entity for Transaction
- */
-@Entity
-@EntityListeners(AuditingEntityListener.class)
-@Table(name = "transaction")
-public class Transaction extends Auditable {
-
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
-    private int transactionId;
+public class ResponseModel {
 
     private String transactionNo;
-
     private BigDecimal transactionAmt;
-
     private BigDecimal closingBalance;
-
-    @ManyToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "payer")
-    private User payer;
-
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date transactionDate;
     private int payeeId;
-
-    private TransactionType transactionType;
-
+    private String payeeName;
     private TransactionDirection transactionDirection;
-
     private TransactionStatus transactionStatus;
+    private ErrorCodes errorCode;
 
-    public int getTransactionId() {
-        return transactionId;
-    }
-
-    public void setTransactionId(int transactionId) {
-        this.transactionId = transactionId;
-    }
-
-    public User getPayer() {
-        return payer;
-    }
-
-    public void setPayer(User payer) {
-        this.payer = payer;
+    public ResponseModel() {
     }
 
     public String getTransactionNo() {
@@ -80,12 +49,28 @@ public class Transaction extends Auditable {
         this.closingBalance = closingBalance;
     }
 
-    public TransactionType getTransactionType() {
-        return transactionType;
+    public Date getTransactionDate() {
+        return transactionDate;
     }
 
-    public void setTransactionType(TransactionType transactionType) {
-        this.transactionType = transactionType;
+    public void setTransactionDate(Date transactionDate) {
+        this.transactionDate = transactionDate;
+    }
+
+    public int getPayeeId() {
+        return payeeId;
+    }
+
+    public void setPayeeId(int payeeId) {
+        this.payeeId = payeeId;
+    }
+
+    public String getPayeeName() {
+        return payeeName;
+    }
+
+    public void setPayeeName(String payeeName) {
+        this.payeeName = payeeName;
     }
 
     public TransactionDirection getTransactionDirection() {
@@ -104,11 +89,11 @@ public class Transaction extends Auditable {
         this.transactionStatus = transactionStatus;
     }
 
-    public int getPayeeId() {
-        return payeeId;
+    public ErrorCodes getErrorCode() {
+        return errorCode;
     }
 
-    public void setPayeeId(int payeeId) {
-        this.payeeId = payeeId;
+    public void setErrorCode(ErrorCodes errorCode) {
+        this.errorCode = errorCode;
     }
 }

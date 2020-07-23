@@ -1,0 +1,5 @@
+package com.example.demospringboot.util.enums;
+
+public enum ErrorCodes {
+    USER_INVALID, USER_INACTIVE, WALLET_INACTIVE, INSUFFICIENT_BALANCE, INVALID_REFUND_REQUEST, PAYEE_INACTIVE, PAYEE_INVALID
+}

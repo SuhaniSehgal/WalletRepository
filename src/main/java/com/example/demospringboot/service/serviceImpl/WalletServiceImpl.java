@@ -3,10 +3,12 @@ package com.example.demospringboot.service.serviceImpl;
 import com.example.demospringboot.entity.Transaction;
 import com.example.demospringboot.entity.User;
 import com.example.demospringboot.entity.Wallet;
+import com.example.demospringboot.model.ResponseModel;
 import com.example.demospringboot.repo.TransactionRepo;
 import com.example.demospringboot.repo.UserRepo;
 import com.example.demospringboot.repo.WalletRepo;
 import com.example.demospringboot.service.WalletService;
+import com.example.demospringboot.util.enums.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -26,8 +28,10 @@ import java.util.UUID;
 @Transactional
 public class WalletServiceImpl implements WalletService {
 
+    private int count = 0;
+
     //format for currency to be displayed to the user
-    NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("en", "in"));
+    private NumberFormat format = NumberFormat.getCurrencyInstance(new Locale("en", "in"));
     @Autowired
     private WalletRepo walletRepo;
     @Autowired
@@ -36,34 +40,56 @@ public class WalletServiceImpl implements WalletService {
     private TransactionRepo transactionRepo;
 
     @Override
-    public String topup(int userId, BigDecimal amtToBeAdded) {
+    public ResponseModel topup(int userId, BigDecimal amtToBeAdded) {
+        String transId = "XX" + count++ + UUID.randomUUID().toString();
+        ResponseModel responseModel = new ResponseModel();
+        responseModel.setTransactionAmt(amtToBeAdded);
+        responseModel.setTransactionNo(transId);
+        responseModel.setTransactionDate(new Date());
+
         Optional<Wallet> walletOptionalData = Optional.ofNullable(walletRepo.findWalletByUserId(userId));
         Optional<User> user = userRepo.findById(userId);
 
-
         if (user.isPresent()) {
+
+            initTransaction(user, walletOptionalData, transId, amtToBeAdded, TransactionType.TOPUP, TransactionDirection.CREDIT);
+
             //check whether the user is in active state
-            if (user.get().getUserStatus() != 1) {
+            if (user.get().getUserStatus() != UserStatus.INACTIVE) {
 
                 //check if wallet details already exist for a user, then add the amt to the existing wallet amt
                 if (walletOptionalData.isPresent()) {
                     Wallet wallet = walletOptionalData.get();
-                    BigDecimal finalAmt = wallet.getAmount().add(amtToBeAdded);
-                    wallet.setAmount(finalAmt);
-                    String transId = "XX01" + UUID.randomUUID().toString();
 
-                    Transaction transaction = new Transaction();
-                    transaction.setUser(user.get());
-                    transaction.setTransactionNo(transId);
-                    transaction.setTransactionDateTime(new Date());
-                    transaction.setTransactionAmt(amtToBeAdded);
-                    transaction.setStatus("Credit");
-                    transaction.setClosingBalance(finalAmt);
-                    transactionRepo.save(transaction);
-                    walletRepo.save(wallet);
+                    //check if wallet status is inactive
+                    if (wallet.getWalletStatus() != WalletStatus.INACTIVE) {
+                        BigDecimal finalAmt = wallet.getAmount().add(amtToBeAdded);
+                        wallet.setAmount(finalAmt);
 
-                    return format.format(amtToBeAdded) + " has been added to your wallet Successfully with transaction no : " + transId + " at " +
-                            transaction.getTransactionDateTime() + ".\nYour closing balance is : " + format.format(transaction.getClosingBalance());
+                        Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                        transaction.setClosingBalance(finalAmt);
+                        transaction.setTransactionStatus(TransactionStatus.SUCCESS);
+                        transactionRepo.save(transaction);
+                        walletRepo.save(wallet);
+
+                        responseModel.setClosingBalance(finalAmt);
+                        responseModel.setTransactionDate(transaction.getCreatedDate());
+                        responseModel.setTransactionDirection(TransactionDirection.CREDIT);
+                        responseModel.setTransactionStatus(TransactionStatus.SUCCESS);
+
+                        return responseModel;
+                    }
+                    //else return the details to user
+                    else {
+                        Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                        transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                        transactionRepo.save(transaction);
+                        responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                        responseModel.setErrorCode(ErrorCodes.WALLET_INACTIVE);
+                        return responseModel;
+                    }
+
+
                 }
 
                 //else create a new wallet with the amt requested for topup
@@ -74,138 +100,231 @@ public class WalletServiceImpl implements WalletService {
                     //check if the user exists
                     if (user.isPresent()) {
                         wallet.setUser(user.get());
-                        String transId = "XX01" + UUID.randomUUID().toString();
 
-                        Transaction transaction = new Transaction();
-                        transaction.setUser(user.get());
-                        transaction.setTransactionNo(transId);
-                        transaction.setTransactionDateTime(new Date());
-                        transaction.setTransactionAmt(amtToBeAdded);
-                        transaction.setStatus("Credit");
+                        Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
                         transaction.setClosingBalance(amtToBeAdded);
+                        transaction.setTransactionStatus(TransactionStatus.SUCCESS);
                         transactionRepo.save(transaction);
                         walletRepo.save(wallet);
-                        return format.format(amtToBeAdded) + " has been added to your wallet Successfully with transaction no : " + transId + " at " +
-                                transaction.getTransactionDateTime() + ".\nYour closing balance is : " +
-                                format.format(transaction.getClosingBalance());
+
+                        responseModel.setClosingBalance(amtToBeAdded);
+                        responseModel.setTransactionDate(transaction.getCreatedDate());
+                        responseModel.setTransactionDirection(TransactionDirection.CREDIT);
+                        responseModel.setTransactionStatus(TransactionStatus.SUCCESS);
+
+                        return responseModel;
 
                     }
                     //if user doesn't exist, display message
                     else {
-                        return "No user exists with the given id";
+                        responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                        responseModel.setErrorCode(ErrorCodes.USER_INVALID);
+                        return responseModel;
                     }
 
                 }
             }
             //if user inactive, display message to the user
             else {
-                return "User Inactive. Cannot make transaction!";
+                Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                transactionRepo.save(transaction);
+                if (walletOptionalData.isPresent()) {
+                    responseModel.setClosingBalance(walletOptionalData.get().getAmount());
+                }
+                responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                responseModel.setErrorCode(ErrorCodes.USER_INACTIVE);
+                return responseModel;
             }
 
         } else {
-            return "User doesn't exist!";
+            responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+            responseModel.setErrorCode(ErrorCodes.USER_INVALID);
+            return responseModel;
         }
 
+    }
+
+    private void initTransaction(Optional<User> user, Optional<Wallet> walletOptionalData, String transId, BigDecimal amt, TransactionType type, TransactionDirection direction) {
+        Transaction transaction = new Transaction();
+        transaction.setTransactionNo(transId);
+        transaction.setTransactionAmt(amt);
+        transaction.setTransactionDirection(direction);
+        transaction.setTransactionType(type);
+        if (user.isPresent()) {
+            transaction.setPayer(user.get());
+        }
+        if (walletOptionalData.isPresent()) {
+            transaction.setClosingBalance(walletOptionalData.get().getAmount());
+        }
+
+        if (type != TransactionType.REFUND)
+            transactionRepo.save(transaction);
 
     }
 
     @Override
-    public String pay(int userId, BigDecimal amtToBePaid) {
+    public ResponseModel pay(int userId, BigDecimal amtToBePaid) {
+
+        String transId = "XX" + count++ + UUID.randomUUID().toString();
+        ResponseModel responseModel = new ResponseModel();
+        responseModel.setTransactionAmt(amtToBePaid);
+        responseModel.setTransactionNo(transId);
+        responseModel.setTransactionDate(new Date());
+
 
         Optional<Wallet> walletOptionalData = Optional.ofNullable(walletRepo.findWalletByUserId(userId));
         Optional<User> user = userRepo.findById(userId);
 
         if (user.isPresent()) {
+
+            initTransaction(user, walletOptionalData, transId, amtToBePaid, TransactionType.PAY, TransactionDirection.DEBIT);
+
             //check if user is active
-            if (user.get().getUserStatus() != 1) {
+            if (user.get().getUserStatus() != UserStatus.INACTIVE) {
 
                 //check if wallet details for the user exists
                 if (walletOptionalData.isPresent()) {
                     Wallet wallet = walletOptionalData.get();
-                    BigDecimal walletBalance = wallet.getAmount();
 
-                    //check if the user has sufficient balance in the wallet to pay certain amt
-                    if (walletBalance.compareTo(amtToBePaid) == 1) {
-                        BigDecimal finalAmt = walletBalance.subtract(amtToBePaid);
-                        wallet.setAmount(finalAmt);
-                        String transId = "XX02" + UUID.randomUUID().toString();
+                    if (wallet.getWalletStatus() != WalletStatus.INACTIVE) {
+                        BigDecimal walletBalance = wallet.getAmount();
 
-                        Transaction transaction = new Transaction();
-                        transaction.setUser(user.get());
-                        transaction.setTransactionNo(transId);
-                        transaction.setTransactionDateTime(new Date());
-                        transaction.setStatus("Debit");
-                        transaction.setClosingBalance(finalAmt);
-                        transaction.setTransactionAmt(amtToBePaid);
+                        //check if the user has sufficient balance in the wallet to pay certain amt
+                        if (walletBalance.compareTo(amtToBePaid) == 1) {
+                            BigDecimal finalAmt = walletBalance.subtract(amtToBePaid);
+                            wallet.setAmount(finalAmt);
+
+
+                            Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                            transaction.setClosingBalance(finalAmt);
+                            transaction.setTransactionStatus(TransactionStatus.SUCCESS);
+                            transactionRepo.save(transaction);
+                            walletRepo.save(wallet);
+
+                            responseModel.setClosingBalance(finalAmt);
+                            responseModel.setTransactionDate(transaction.getCreatedDate());
+                            responseModel.setTransactionDirection(TransactionDirection.DEBIT);
+                            responseModel.setTransactionStatus(TransactionStatus.SUCCESS);
+
+                            return responseModel;
+
+                        }
+
+                        //else display message for insufficient amt
+                        else {
+                            Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                            transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                            transactionRepo.save(transaction);
+                            responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                            responseModel.setErrorCode(ErrorCodes.INSUFFICIENT_BALANCE);
+                            return responseModel;
+                        }
+                    } else {
+                        Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                        transaction.setTransactionStatus(TransactionStatus.FAILURE);
                         transactionRepo.save(transaction);
-                        walletRepo.save(wallet);
-
-                        return format.format(amtToBePaid) + " amount has been successfully paid from your wallet against transaction no : " + transId + " at " +
-                                transaction.getTransactionDateTime() + ".\nYour closing balance is : " + format.format(transaction.getClosingBalance());
-                    }
-                    //else display message for insufficient amt
-                    else {
-                        return "No sufficient balance in Wallet!";
+                        responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                        responseModel.setErrorCode(ErrorCodes.WALLET_INACTIVE);
+                        return responseModel;
                     }
                 }
                 //else display message for no wallet amount
                 else {
-                    return "No Amount present in Wallet!";
+                    Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                    transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                    transactionRepo.save(transaction);
+                    responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                    responseModel.setErrorCode(ErrorCodes.INSUFFICIENT_BALANCE);
+                    return responseModel;
                 }
             }
             //if user is inactive, display message
             else {
-                return "User Inactive. Cannot make transaction!";
+                Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                transactionRepo.save(transaction);
+                responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                responseModel.setErrorCode(ErrorCodes.USER_INACTIVE);
+                return responseModel;
             }
         } else {
-            return "User doesn't exist!";
+
+            responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+            responseModel.setErrorCode(ErrorCodes.USER_INVALID);
+            return responseModel;
         }
 
     }
 
     @Override
-    public String refund(int userId, int transactionId) {
+    public ResponseModel refund(int userId, int transactionId) {
+
         Transaction transaction = transactionRepo.getTransactionDetailsForTransactionId(transactionId);
         Optional<User> user = userRepo.findById(userId);
+        Optional<Wallet> optionalWallet = Optional.ofNullable(walletRepo.findWalletByUserId(userId));
+
+        String transId = "XX" + count++ + UUID.randomUUID().toString();
+        ResponseModel responseModel = new ResponseModel();
+        //responseModel.setTransactionAmt(transaction.getTransactionAmt());
+        responseModel.setTransactionNo(transId);
+        responseModel.setTransactionDate(new Date());
 
         if (user.isPresent()) {
+
+            initTransaction(user, optionalWallet, transId, transaction.getTransactionAmt(), TransactionType.REFUND, TransactionDirection.CREDIT);
+
             //check is the user is active
-            if (user.get().getUserStatus() != 1) {
+            if (user.get().getUserStatus() != UserStatus.INACTIVE) {
+
+                Wallet wallet = optionalWallet.get();
 
                 //Validate the user id and status as debit
-                if (transaction.getUser().getUserId() == userId && transaction.getStatus().equals("Debit")) {
+                if (transaction.getPayer().getUserId() == userId && transaction.getTransactionType() == TransactionType.PAY) {
                     BigDecimal transactionAmt = transaction.getTransactionAmt();
-                    Wallet wallet = walletRepo.findWalletByUserId(userId);
                     wallet.setAmount(wallet.getAmount().add(transactionAmt));
 
-                    Transaction refundTransaction = new Transaction();
-                    refundTransaction.setUser(user.get());
-                    refundTransaction.setClosingBalance(wallet.getAmount().add(transactionAmt));
-                    refundTransaction.setTransactionAmt(transactionAmt);
-                    refundTransaction.setStatus("Refund");
-                    refundTransaction.setTransactionDateTime(new Date());
-                    String transId = "XX03" + UUID.randomUUID().toString();
-                    refundTransaction.setTransactionNo(transId);
-
                     walletRepo.save(wallet);
-                    transactionRepo.save(refundTransaction);
 
-                    return "Your refund of amount " + format.format(transactionAmt) + " has been credited in wallet against the transaction : " + transId +
-                            " at " + refundTransaction.getTransactionDateTime() + ".\nYour closing balance is : " +
-                            format.format(refundTransaction.getClosingBalance());
+                    transaction.setTransactionAmt(transactionAmt);
+                    transaction.setClosingBalance(wallet.getAmount());
+                    transaction.setTransactionType(TransactionType.REFUND);
+                    transaction.setTransactionStatus(TransactionStatus.SUCCESS);
+
+                    transactionRepo.save(transaction);
+
+                    responseModel.setTransactionDirection(TransactionDirection.CREDIT);
+                    responseModel.setTransactionStatus(TransactionStatus.SUCCESS);
+                    responseModel.setTransactionAmt(transactionAmt);
+                    responseModel.setClosingBalance(wallet.getAmount());
+
+                    return responseModel;
+
 
                 }
+
                 //else display message for invalid refund request
                 else {
-                    return "Invalid refund request!";
+
+                    transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                    transactionRepo.save(transaction);
+                    responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                    responseModel.setErrorCode(ErrorCodes.INVALID_REFUND_REQUEST);
+                    return responseModel;
                 }
             }
             //else display message for inactive user
             else {
-                return "User Inactive. Cannot make transaction!";
+                transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                transactionRepo.save(transaction);
+                responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                responseModel.setErrorCode(ErrorCodes.USER_INACTIVE);
+                return responseModel;
             }
         } else {
-            return "User doesn't exist!";
+            responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+            responseModel.setErrorCode(ErrorCodes.USER_INVALID);
+            return responseModel;
         }
     }
 
@@ -225,42 +344,58 @@ public class WalletServiceImpl implements WalletService {
     }
 
     @Override
-    public String payP2P(int fromUserId, BigDecimal amtToBePaid, int toUserId) {
+    public ResponseModel payP2P(int fromUserId, BigDecimal amtToBePaid, int toUserId) {
 
+        String transId = "XX" + count++ + UUID.randomUUID().toString();
+        ResponseModel responseModel = new ResponseModel();
+        responseModel.setTransactionAmt(amtToBePaid);
+        responseModel.setTransactionNo(transId);
+        responseModel.setTransactionDate(new Date());
+        responseModel.setPayeeId(toUserId);
 
         synchronized (this) {
-            Wallet fromUserWallet = walletRepo.findWalletByUserId(fromUserId);
+            Optional<Wallet> optionalFromUserWallet = Optional.ofNullable(walletRepo.findWalletByUserId(fromUserId));
             Optional<User> fromUserOptionalData = userRepo.findById(fromUserId);
             Optional<User> toUserOptionalData = userRepo.findById(toUserId);
+            responseModel.setPayeeName(toUserOptionalData.get().getUserName());
 
+
+            Wallet fromUserWallet = optionalFromUserWallet.get();
+            responseModel.setClosingBalance(fromUserWallet.getAmount());
             //check if fromUser exists
             if (fromUserOptionalData.isPresent()) {
 
+                initTransaction(fromUserOptionalData, optionalFromUserWallet, transId, amtToBePaid, TransactionType.P2P, TransactionDirection.DEBIT);
+
                 //check if fromUser is active
-                if (fromUserOptionalData.get().getUserStatus() != 1) {
+                if (fromUserOptionalData.get().getUserStatus() != UserStatus.INACTIVE) {
 
                     //check if toUser exists
                     if (toUserOptionalData.isPresent()) {
 
                         //check if toUser is active
-                        if (toUserOptionalData.get().getUserStatus() != 1) {
+                        if (toUserOptionalData.get().getUserStatus() != UserStatus.INACTIVE) {
+
+                            responseModel.setPayeeName(toUserOptionalData.get().getUserName());
+
+                            String toTransId = "XX" + count++ + UUID.randomUUID().toString();
+
+                            Optional<Wallet> optionalToUserWallet = Optional.ofNullable(walletRepo.findWalletByUserId(toUserId));
+
+                            initTransaction(fromUserOptionalData, optionalToUserWallet, toTransId, amtToBePaid, TransactionType.P2P, TransactionDirection.CREDIT);
 
                             //check if sufficient amt is present in fromUser
                             if (fromUserWallet.getAmount().compareTo(amtToBePaid) == 1) {
 
-                                Wallet toUserWallet = walletRepo.findWalletByUserId(toUserId);
-
+                                Wallet toUserWallet = optionalToUserWallet.get();
                                 BigDecimal finalAmt = fromUserWallet.getAmount().subtract(amtToBePaid);
                                 fromUserWallet.setAmount(finalAmt);
-                                String transId = "XX02" + UUID.randomUUID().toString();
 
-                                Transaction fromTransaction = new Transaction();
-                                fromTransaction.setUser(fromUserOptionalData.get());
-                                fromTransaction.setTransactionNo(transId);
-                                fromTransaction.setTransactionDateTime(new Date());
-                                fromTransaction.setStatus("Debit");
+
+                                Transaction fromTransaction = transactionRepo.findTransactionByTxnNo(transId);
                                 fromTransaction.setClosingBalance(finalAmt);
-                                fromTransaction.setTransactionAmt(amtToBePaid);
+                                fromTransaction.setTransactionStatus(TransactionStatus.SUCCESS);
+                                fromTransaction.setPayeeId(toUserId);
                                 transactionRepo.save(fromTransaction);
                                 walletRepo.save(fromUserWallet);
 
@@ -276,48 +411,66 @@ public class WalletServiceImpl implements WalletService {
                                     walletRepo.save(wallet);
                                 }
 
-                                String toTransId = "XX01" + UUID.randomUUID().toString();
 
-                                Transaction toTransaction = new Transaction();
-                                toTransaction.setUser(toUserOptionalData.get());
-                                toTransaction.setTransactionNo(toTransId);
-                                toTransaction.setTransactionDateTime(new Date());
-                                toTransaction.setStatus("Credit");
+                                Transaction toTransaction = transactionRepo.findTransactionByTxnNo(toTransId);
+                                toTransaction.setPayeeId(toUserId);
+                                toTransaction.setTransactionStatus(TransactionStatus.SUCCESS);
                                 toTransaction.setClosingBalance(walletRepo.findWalletBalanceByUserId(toUserId));
-                                toTransaction.setTransactionAmt(amtToBePaid);
                                 transactionRepo.save(toTransaction);
 
+                                responseModel.setTransactionStatus(TransactionStatus.SUCCESS);
+                                responseModel.setClosingBalance(finalAmt);
+                                responseModel.setTransactionDirection(TransactionDirection.DEBIT);
+                                responseModel.setPayeeId(toUserId);
 
-                                return format.format(amtToBePaid) + " amount has been successfully paid to " + toUserOptionalData.get().getUserName() +
-                                        " from your wallet against transaction no : " + transId + " at " + toTransaction.getTransactionDateTime() +
-                                        ".\nYour closing balance is : " + format.format(fromTransaction.getClosingBalance());
+                                return responseModel;
 
                             }
                             //display message for in sufficient wallet balance
                             else {
-                                return "No sufficient balance in your wallet!";
+
+                                Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                                transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                                transactionRepo.save(transaction);
+                                responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                                responseModel.setErrorCode(ErrorCodes.USER_INACTIVE);
+                                return responseModel;
                             }
 
                         }
                         //display message for inactive toUser
                         else {
-                            return "Cannot pay the amount to " + toUserOptionalData.get().getUserName() + " as the user is Inactive!";
+                            Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                            transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                            transactionRepo.save(transaction);
+                            responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                            responseModel.setErrorCode(ErrorCodes.PAYEE_INACTIVE);
+                            return responseModel;
                         }
 
                     }
                     //display message for invalid toUser
                     else {
-                        return "Transaction Failed due to Invalid User Id!";
+                        responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                        responseModel.setErrorCode(ErrorCodes.PAYEE_INVALID);
+                        return responseModel;
                     }
                 }
                 //display message for inactive fromUser
                 else {
-                    return "Inactive User Id! Cannot make transaction";
+                    Transaction transaction = transactionRepo.findTransactionByTxnNo(transId);
+                    transaction.setTransactionStatus(TransactionStatus.FAILURE);
+                    transactionRepo.save(transaction);
+                    responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                    responseModel.setErrorCode(ErrorCodes.USER_INACTIVE);
+                    return responseModel;
                 }
             }
             //else display message for invalid fromUser
             else {
-                return "Invalid User Id! No user details found!";
+                responseModel.setTransactionStatus(TransactionStatus.FAILURE);
+                responseModel.setErrorCode(ErrorCodes.USER_INVALID);
+                return responseModel;
             }
 
 

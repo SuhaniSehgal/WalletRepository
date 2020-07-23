@@ -1,6 +1,7 @@
 package com.example.demospringboot.entity;
 
 import com.example.demospringboot.util.Auditable;
+import com.example.demospringboot.util.enums.WalletStatus;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import javax.persistence.*;
@@ -11,7 +12,9 @@ import java.math.BigDecimal;
  */
 @Entity
 @EntityListeners(AuditingEntityListener.class)
-@Table(name = "wallet")
+@Table(name = "wallet", uniqueConstraints = {
+        @UniqueConstraint(name = "myconst", columnNames = {"userId"})
+})
 public class Wallet extends Auditable {
 
     @Id
@@ -22,7 +25,7 @@ public class Wallet extends Auditable {
     @JoinColumn(name = "userId")
     private User user;
     private BigDecimal amount;
-
+    private WalletStatus walletStatus = WalletStatus.ACTIVE;
 
     public int getWalletId() {
         return walletId;
@@ -49,4 +52,11 @@ public class Wallet extends Auditable {
         this.user = user;
     }
 
+    public WalletStatus getWalletStatus() {
+        return walletStatus;
+    }
+
+    public void setWalletStatus(WalletStatus walletStatus) {
+        this.walletStatus = walletStatus;
+    }
 }

@@ -1,5 +1,7 @@
 package com.example.demospringboot.service;
 
+import com.example.demospringboot.model.ResponseModel;
+
 import java.math.BigDecimal;
 
 /**
@@ -14,7 +16,7 @@ public interface WalletService {
      * @param amtToBeAdded
      * @return String
      */
-    String topup(int userId, BigDecimal amtToBeAdded);
+    ResponseModel topup(int userId, BigDecimal amtToBeAdded);
 
     /**
      * Method for paying money through wallet
@@ -23,7 +25,7 @@ public interface WalletService {
      * @param amtToBePaid
      * @return String
      */
-    String pay(int userId, BigDecimal amtToBePaid);
+    ResponseModel pay(int userId, BigDecimal amtToBePaid);
 
     /**
      * Method for refunding money to the wallet for a previous transaction
@@ -32,7 +34,7 @@ public interface WalletService {
      * @param transactionId
      * @return String
      */
-    String refund(int userId, int transactionId);
+    ResponseModel refund(int userId, int transactionId);
 
     /**
      * Method for checking the wallet balance
@@ -50,5 +52,5 @@ public interface WalletService {
      * @param toUserId
      * @return String
      */
-    String payP2P(int fromUserId, BigDecimal amtToBePaid, int toUserId);
+    ResponseModel payP2P(int fromUserId, BigDecimal amtToBePaid, int toUserId);
 }

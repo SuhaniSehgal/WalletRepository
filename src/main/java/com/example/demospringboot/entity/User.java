@@ -2,6 +2,7 @@ package com.example.demospringboot.entity;
 
 
 import com.example.demospringboot.util.Auditable;
+import com.example.demospringboot.util.enums.UserStatus;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import javax.persistence.*;
@@ -25,16 +26,21 @@ public class User extends Auditable {
     private String address1;
     private String address2;
 
-    private int userStatus;
+    private UserStatus userStatus = UserStatus.ACTIVE;
+
+    // private int UserStatus userStatus;
 
 //    @OneToOne(cascade = CascadeType.ALL)
 //    @JoinColumn(name = "userId")
 //    private Wallet wallet;
 
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "payer", cascade = CascadeType.ALL)
     // @JoinColumn(name = "userId")
     private List<Transaction> transactionList;
+
+    public User() {
+    }
 
     public int getUserId() {
         return userId;
@@ -84,13 +90,22 @@ public class User extends Auditable {
         this.address2 = address2;
     }
 
-    public int getUserStatus() {
+    public UserStatus getUserStatus() {
         return userStatus;
     }
 
-    public void setUserStatus(int userStatus) {
+    public void setUserStatus(UserStatus userStatus) {
         this.userStatus = userStatus;
     }
 
+    //    public int getUserStatus() {
+//        return userStatus;
+//    }
+//
+//    public void setUserStatus(int userStatus) {
+//        this.userStatus = userStatus;
+//    }
+
 
 }
+

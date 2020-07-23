@@ -38,9 +38,9 @@ public class TransactionImpl implements TransactionService {
                 Transaction transaction = (Transaction) itr.next();
                 passbookModel.setTransactionId(transaction.getTransactionId());
                 passbookModel.setTransactionNo(transaction.getTransactionNo());
-                passbookModel.setTransactionDateTime(transaction.getTransactionDateTime());
+                passbookModel.setTransactionDateTime(transaction.getCreatedDate());
                 passbookModel.setTransactionAmt(transaction.getTransactionAmt());
-                passbookModel.setStatus(transaction.getStatus());
+                passbookModel.setStatus(transaction.getTransactionDirection());
                 passbookModel.setClosingBalance(transaction.getClosingBalance());
                 passbookList.add(passbookModel);
 

@@ -11,10 +11,10 @@ import java.math.BigDecimal;
  */
 public interface WalletRepo extends JpaRepository<Wallet, Integer> {
 
-    @Query(value = "SELECT * FROM wallet WHERE wallet.user_id=?1", nativeQuery = true)
+    @Query(value = "SELECT * FROM wallet WHERE wallet.user_id=?1 for update ", nativeQuery = true)
     Wallet findWalletByUserId(int id);
 
-    @Query(value = "SELECT wallet.amount FROM wallet where wallet.user_id=?1", nativeQuery = true)
+    @Query(value = "SELECT wallet.amount FROM wallet where wallet.user_id=?1 for update ", nativeQuery = true)
     BigDecimal findWalletBalanceByUserId(int id);
 
 

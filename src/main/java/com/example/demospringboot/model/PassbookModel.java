@@ -1,5 +1,7 @@
 package com.example.demospringboot.model;
 
+import com.example.demospringboot.util.enums.TransactionDirection;
+
 import java.math.BigDecimal;
 import java.util.Date;
 
@@ -12,7 +14,7 @@ public class PassbookModel {
     private String transactionNo;
     private Date transactionDateTime;
     private BigDecimal transactionAmt;
-    private String status;
+    private TransactionDirection transactionDirection;
     private BigDecimal closingBalance;
 
     public PassbookModel() {
@@ -52,12 +54,12 @@ public class PassbookModel {
         this.transactionAmt = transactionAmt;
     }
 
-    public String getStatus() {
-        return status;
+    public TransactionDirection getStatus() {
+        return transactionDirection;
     }
 
-    public void setStatus(String status) {
-        this.status = status;
+    public void setStatus(TransactionDirection status) {
+        this.transactionDirection = status;
     }
 
     public BigDecimal getClosingBalance() {
